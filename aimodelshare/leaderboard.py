@@ -4,6 +4,9 @@ import pandas as pd
 import os
 import requests
 
+import matplotlib.pyplot as plt
+
+from collections import Counter
 from aimodelshare.aws import run_function_on_lambda, get_aws_client
 from aimodelshare.aimsonnx import _get_layer_names, layer_mapping
 
@@ -36,7 +39,7 @@ def get_leaderboard_aws(apiurl, verbose=3, columns=None):
     # Get leaderboard {{{
     try:
         leaderboard = aws_client["client"].get_object(
-            Bucket=bucket, Key=model_id + "/model_eval_data_mastertable.csv"
+            Bucket=bucket, Key=model_id + "/model_eval_data_mastertable.csv" 
         )
         assert (
             leaderboard["ResponseMetadata"]["HTTPStatusCode"] == 200
@@ -273,7 +276,5 @@ def consolidate_leaderboard(data, naming_convention="keras"):
 
 
 
-__all__ = [
-    get_leaderboard,
-    stylize_leaderboard,
-]
+__all__ = [get_leaderboard,
+    stylize_leaderboard]
