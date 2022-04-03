@@ -278,10 +278,11 @@ def handler(event, context):
             version = body["model_version"]
             reproduce = body["reproduce"]
             trained = body["trained"]
+            submission_type = body.get("submission_type")
 
             reproducibility_env_json = None
             model_weight_url = None
-            model_metadata_json = get_model_metadata(version)
+            model_metadata_json = get_model_metadata(version, submission_type)
 
             # the model version is found (users didn't only submit prediction for this version)
             if model_metadata_json:
@@ -1338,10 +1339,10 @@ def get_model_metadata(version):
     try:
         if version == None:
             with open("/tmp/metadata.json", "wb") as temp_path:
-                bucket.download_fileobj("$unique_model_id/runtime_metadata.json",  temp_path)
+                bucket.download_fileobj("$unique_model_id/"+submission_type+"/runtime_metadata.json",  temp_path)
         else:
             with open("/tmp/metadata.json", "wb") as temp_path:
-                bucket.download_fileobj("$unique_model_id/model_metadata_v{}.json".format(version),  temp_path)
+                bucket.download_fileobj("$unique_model_id/"+submission_type+"/model_metadata_v{}.json".format(version),  temp_path)
         
         model_metadata_json = json.load(open("/tmp/metadata.json","rb"))
     except botocore.exceptions.ClientError as e:
