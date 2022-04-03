@@ -62,9 +62,12 @@ def handler(event, context):
     
         if body.get("return_eval","ALL")  == "True":
         
+            submission_type = body.get("submission_type")
+            print(submission_type)
+
             idempotentmodel_version=json.loads(event['requestContext']['authorizer']['uniquemodversion'])
 
-            ytestdata=get_ytestdata(ytest_s3_filename="ytest.pkl")
+            ytestdata=get_ytestdata(ytest_s3_filename=submission_type+"/"+"ytest.pkl")
       
             eval_result = evaluate_model(body, ytestdata)
 
@@ -72,7 +75,7 @@ def handler(event, context):
             model_id="$unique_model_id"
             
             s3_client=boto3.client("s3")
-            model_files, err = _get_file_list(s3_client, bucket, model_id)
+            model_files, err = _get_file_list(s3_client, bucket, model_id+"/"+submission_type)
             print(model_files)
 
             mversions=[]
@@ -94,7 +97,7 @@ def handler(event, context):
                     newleaderboarddata.append(i)
         
             try:
-                leaderboard = get_leaderboard("$task_type")  #task_type variable used here
+                leaderboard = get_leaderboard("classification", submission_type=submission_type)  #task_type variable used here
                 currentversions=leaderboard['version']
             except:
                 currentversions=[]
@@ -153,7 +156,7 @@ def handler(event, context):
             finalfilespost=finalfiles
            
             for i in finalfilespost:
-                putresult= create_presigned_post(bucket, model_id+"/"+i, expiration=expires_in)
+                putresult= create_presigned_post(bucket, model_id+"/"+submission_type+"/"+i, expiration=expires_in)
                 putdict.update({str(i):str(putresult)})
             
             print(finalfilespost)            
@@ -168,7 +171,7 @@ def handler(event, context):
             print(finalfilesget)
 
             for i in finalfilesget:
-                method_parameters = {'Bucket': bucket, 'Key': model_id+"/"+i} #repeat for all necessary keys and return dict with nec. end user artifacts.
+                method_parameters = {'Bucket': bucket, 'Key': model_id+"/"+submission_type+"/"+i} #repeat for all necessary keys and return dict with nec. end user artifacts.
                 getresult= generate_presigned_url(s3_client, 'get_object', method_parameters, expires_in)
                 getdict.update({str(i):str(getresult)})
             
@@ -244,6 +247,9 @@ def handler(event, context):
 
 
         if body.get("get_leaderboard","ALL") == "True": 
+
+            submission_type = body.get("submission_type","ALL")
+            print("submission_type ", submission_type)
             
             verbose=body["verbose"]
             columns=body["columns"]
@@ -253,7 +259,7 @@ def handler(event, context):
             else:
                 private = False
         
-            leaderboard = get_leaderboard("$task_type", verbose, columns, private)
+            leaderboard = get_leaderboard("$task_type", verbose, columns, private, submission_type)
             
             leaderboard_dict = {"statusCode": 200,
                 "headers": {
@@ -869,18 +875,18 @@ def model_from_string(model_type):
     return model_class
 
 
-def get_leaderboard(task_type="classification", verbose=3, columns=None, private=False):
+def get_leaderboard(task_type="classification", verbose=3, columns=None, private=False, submission_type='competition'):
     
     if private==True:
-        mastertable_path = 'model_eval_data_mastertable_private'
+        mastertable_path = submission_type+"/"+'model_eval_data_mastertable_private'
     else:
-        mastertable_path = 'model_eval_data_mastertable'
+        mastertable_path = submission_type+"/"+'model_eval_data_mastertable'
 
     bucket="$bucket_name"
     model_id="$unique_model_id"
     
     s3_client=boto3.client("s3")
-    model_files, err = _get_file_list(s3_client, bucket, model_id)
+    model_files, err = _get_file_list(s3_client, bucket, model_id+"/"+submission_type)
     print(model_files)
     
     newleaderboarddata=[]
@@ -893,12 +899,12 @@ def get_leaderboard(task_type="classification", verbose=3, columns=None, private
 
     s3 = boto3.resource("s3")
     bucketres = s3.Bucket("$bucket_name")
-    with open("/tmp/"+mastertable_path+".csv", "wb") as lbfo:
+    with open("/tmp/"+mastertable_path.split("/")[-1]+".csv", "wb") as lbfo:
       bucketres.download_fileobj("$unique_model_id/"+mastertable_path+".csv", lbfo)              
       
       
       
-    leaderboard = pd.read_csv("/tmp/"+mastertable_path+".csv", sep="\t")
+    leaderboard = pd.read_csv("/tmp/"+mastertable_path.split("/")[-1]+".csv", sep="\t")
     currentversions=leaderboard['version']
     print("current versions:")
     print(list(currentversions))
@@ -911,26 +917,26 @@ def get_leaderboard(task_type="classification", verbose=3, columns=None, private
     #TODO: check if items in leaderboard, if so, then do following
     if len(missingincurrent_leaderboard)>0:
         for i in missingincurrent_leaderboard:
-            with open("/tmp/"+mastertable_path+"_v"+str(i)+".csv", "wb") as lbfo:
+            with open("/tmp/"+mastertable_path.split("/")[-1]+"_v"+str(i)+".csv", "wb") as lbfo:
               bucketres.download_fileobj("$unique_model_id/"+mastertable_path+"_v"+str(i)+".csv", lbfo)
-            newleaderboard = pd.read_csv("/tmp/"+mastertable_path+"_v"+str(i)+".csv", sep="\t")
+            newleaderboard = pd.read_csv("/tmp/"+mastertable_path.split("/")[-1]+"_v"+str(i)+".csv", sep="\t")
             newleaderboard.drop(newleaderboard.filter(regex="Unname"),axis=1, inplace=True)
             
             leaderboard=leaderboard.append(newleaderboard).drop_duplicates()
             
         leaderboard.drop(leaderboard.filter(regex="Unname"),axis=1, inplace=True)
     #save new leaderboard here
-        leaderboard.to_csv("/tmp/"+mastertable_path+".csv",sep="\t",index=False)
-        s3_client.upload_file("/tmp/"+mastertable_path+".csv", bucket, model_id + "/"+mastertable_path+".csv")
+        leaderboard.to_csv("/tmp/"+mastertable_path.split("/")[-1]+".csv",sep="\t",index=False)
+        s3_client.upload_file("/tmp/"+mastertable_path.split("/")[-1]+".csv", bucket, model_id + "/"+mastertable_path+".csv")
     
     
     else:
         pass
     s3 = boto3.resource("s3")
     bucket = s3.Bucket("$bucket_name")
-    with open("/tmp/"+mastertable_path+".csv", "wb") as lbfo:
+    with open("/tmp/"+mastertable_path.split("/")[-1]+".csv", "wb") as lbfo:
       bucket.download_fileobj("$unique_model_id/"+mastertable_path+".csv", lbfo)
-    leaderboard = pd.read_csv("/tmp/"+mastertable_path+".csv", sep="\t")
+    leaderboard = pd.read_csv("/tmp/"+mastertable_path.split("/")[-1]+".csv", sep="\t")
 
 
     clf =["accuracy", "f1_score", "precision", "recall"]
@@ -982,6 +988,8 @@ def get_leaderboard(task_type="classification", verbose=3, columns=None, private
     leaderboard['username']=leaderboard.pop("username")
     leaderboard['timestamp'] = leaderboard.pop("timestamp")
     leaderboard['version'] = leaderboard.pop("version")
+
+    leaderboard = leaderboard.drop(columns="model_config")
 
     return leaderboard
 
@@ -1297,7 +1305,7 @@ def get_ytestdata(ytest_s3_filename="ytest.pkl"):
     bucket = s3.Bucket("$bucket_name")
 
     with open("/tmp/ytest.pkl", "wb") as ytestfo:
-        bucket.download_fileobj("$unique_model_id/ytest.pkl",  ytestfo)
+        bucket.download_fileobj("$unique_model_id/"+ytest_s3_filename,  ytestfo)
     ytestdata = pickle.load(open("/tmp/ytest.pkl", "rb" ) )
     return ytestdata
   
@@ -1391,7 +1399,7 @@ def _get_file_list(client, bucket,keysubfolderid):
     file_list = []
     if "Contents" in objects:
         for key in objects["Contents"]:
-            file_list.append(key["Key"].split("/")[1])
+            file_list.append(key["Key"].split("/")[-1])
     #  }}}
 
     return file_list, None

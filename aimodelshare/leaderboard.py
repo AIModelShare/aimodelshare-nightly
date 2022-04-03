@@ -108,7 +108,7 @@ def get_leaderboard_aws(apiurl, verbose=3, columns=None):
     return leaderboard
 
 
-def get_leaderboard_lambda(apiurl, verbose=3, columns=None):
+def get_leaderboard_lambda(apiurl, verbose=3, columns=None, submission_type="competition"):
     if all(["username" in os.environ, 
            "password" in os.environ]):
         pass
@@ -126,6 +126,7 @@ def get_leaderboard_lambda(apiurl, verbose=3, columns=None):
                "compare_models": "False",
                "version_list": "None",
                "get_leaderboard": "True",
+               "submission_type": submission_type,
                "verbose": verbose,
                "columns": columns}
     
@@ -140,7 +141,7 @@ def get_leaderboard_lambda(apiurl, verbose=3, columns=None):
     return leaderboard_pd
 
 
-def get_leaderboard(apiurl, verbose=3, columns=None):
+def get_leaderboard(apiurl, verbose=3, columns=None, submission_type="competition"):
 
     if all(["username" in os.environ, 
            "password" in os.environ]):
@@ -150,7 +151,7 @@ def get_leaderboard(apiurl, verbose=3, columns=None):
 
     
     try: 
-        leaderboard_pd = get_leaderboard_lambda(apiurl, verbose, columns)
+        leaderboard_pd = get_leaderboard_lambda(apiurl, verbose, columns, submission_type)
     except: 
         leaderboard_pd = get_leaderboard_aws(apiurl, verbose, columns)
     
