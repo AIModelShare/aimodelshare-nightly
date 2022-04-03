@@ -1511,7 +1511,7 @@ def _get_onnx_from_bucket(apiurl, aws_client, version=None):
     return onx
 
 
-def instantiate_model(apiurl, version=None, trained=False, reproduce=False):
+def instantiate_model(apiurl, version=None, trained=False, reproduce=False, submission_type="competition"):
     # Confirm that creds are loaded, print warning if not
     if all(["username" in os.environ, 
           "password" in os.environ]):
@@ -1531,7 +1531,8 @@ def instantiate_model(apiurl, version=None, trained=False, reproduce=False):
         "instantiate_model": "True",
         "reproduce": reproduce,
         "trained": trained,
-        "model_version": version
+        "model_version": version,
+        "submission_type": submission_type
     }
 
     headers = { 'Content-Type':'application/json', 'authorizationToken': os.environ.get("AWS_TOKEN"),} 
@@ -1738,7 +1739,7 @@ def print_y_stats(y_stats):
   print("y_test label dtypes", y_stats['label_dtypes'])
 
 
-def inspect_y_test(apiurl):
+def inspect_y_test(apiurl, submission_type):
 
   # Confirm that creds are loaded, print warning if not
   if all(["username" in os.environ, 
@@ -1749,7 +1750,8 @@ def inspect_y_test(apiurl):
 
   post_dict = {"y_pred": [],
                "return_eval": "False",
-               "return_y": "True"}
+               "return_y": "True",
+               "submission_type": submission_type}
     
   headers = { 'Content-Type':'application/json', 'authorizationToken': os.environ.get("AWS_TOKEN"),}
 

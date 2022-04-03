@@ -192,8 +192,10 @@ def handler(event, context):
 
             
         if body.get("return_y","ALL") == "True":
-            
-            ytestdata=get_ytestdata(ytest_s3_filename="ytest.pkl")
+
+            submission_type = body.get("submission_type")
+
+            ytestdata=get_ytestdata(ytest_s3_filename=submission_type+"/ytest.pkl")
             y_stats = analyze_ytest(ytestdata)
         
             ytest_dict = {"statusCode": 200,
