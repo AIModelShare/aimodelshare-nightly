@@ -342,7 +342,10 @@ class Competition:
         inspect_pd : dictionary of model summary & metadata
         """
         from aimodelshare.aimsonnx import inspect_model
-        inspect_pd = inspect_model(apiurl=self.playground_url, version=version, naming_convention=naming_convention)
+
+        inspect_pd = inspect_model(apiurl=self.playground_url, version=version, 
+            naming_convention=naming_convention, submission_type = self.submission_type)
+
         return inspect_pd
 
     def compare_models(self, version_list="None", by_model_type=None, best_model=None, verbose=1, naming_convention=None):
@@ -367,7 +370,8 @@ class Competition:
                       by_model_type = by_model_type,
                       best_model = best_model, 
                       verbose = verbose,
-                      naming_convention=naming_convention)
+                      naming_convention=naming_convention,
+                      submission_type = self.submission_type)
         return data
 
     def stylize_compare(self, compare_dict, naming_convention=None):
@@ -460,7 +464,9 @@ class Competition:
         response:   "Success" upon successful request
         """
         from aimodelshare.generatemodelapi import update_access_list as update_list
-        update = update_list(apiurl = self.playground_url, email_list=email_list,update_type=update_type)
+        update = update_list(apiurl = self.playground_url, 
+            email_list=email_list,update_type=update_type,
+            submission_type=self.submission_type)
         return update
 
 

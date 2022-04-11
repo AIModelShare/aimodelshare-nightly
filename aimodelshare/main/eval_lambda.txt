@@ -52,7 +52,8 @@ def handler(event, context):
     decoded = jwt.decode(idtoken, options={"verify_signature": False})  # works in PyJWT < v2.0
     email=decoded['email']
     print(email)
-    authorized_competitionusers=get_authorizedcompetitionuserdata(example_data_filename = "competitionuserdata.json")
+    submission_type = body.get("submission_type", None)
+    authorized_competitionusers=get_authorizedcompetitionuserdata(example_data_filename = submission_type+"/competitionuserdata.json")
     authorized_emails=authorized_competitionusers.get("emails","no data")
     public=authorized_competitionusers.get("public","FALSE")
     
@@ -212,8 +213,9 @@ def handler(event, context):
         if body.get("inspect_model","ALL") == "True": 
         
             version = body["version"]
+            submission_type = body.get("submission_type", None)
 
-            inspect_pd = inspect_model(version)
+            inspect_pd = inspect_model(version, submission_type=submission_type)
             
             inspect_dict = {"statusCode": 200,
                 "headers": {
@@ -232,10 +234,10 @@ def handler(event, context):
             version_list = body["version_list"]
             verbose = body.get("verbose", 1)
             naming_convention = body.get("naming_convention", None)
+            submission_type = body.get("submission_type", None)
 
-
-            comp_dict_out = compare_models(version_list, verbose=verbose, naming_convention=naming_convention)
-            
+            comp_dict_out = compare_models(version_list, verbose=verbose, naming_convention=naming_convention, submission_type=submission_type)
+                        
             compare_dict = {"statusCode": 200,
                 "headers": {
                 "Access-Control-Allow-Origin" : "*",
@@ -371,9 +373,10 @@ def handler(event, context):
             version_list = body["version_list"]
             verbose = body.get("verbose", 1)
             naming_convention = body.get("naming_convention", None)
+            submission_type = body.get("submission_type", None)
 
-            comp_dict_out = compare_models(version_list, verbose=verbose, naming_convention=naming_convention)
-            
+            comp_dict_out = compare_models(version_list, verbose=verbose, naming_convention=naming_convention, submission_type=submission_type)
+                        
             compare_dict = {"statusCode": 200,
                 "headers": {
                 "Access-Control-Allow-Origin" : "*",
@@ -606,10 +609,10 @@ def evaluate_model(body, ytestdata):
     return result
     
     
-def inspect_model(version):
+def inspect_model(version, submission_type):
     
     s3 = boto3.resource('s3')
-    obj = s3.Object("$bucket_name", "$unique_model_id/"+"inspect_pd_"+str(version)+".json")
+    obj = s3.Object("$bucket_name", "$unique_model_id/"+submission_type+"/inspect_pd_"+str(version)+".json")
     data = obj.get()['Body'].read()
     model_dict = json.loads(data)
 
@@ -683,7 +686,7 @@ def _get_metadata(onnx_model):
     return onnx_meta_dict
     
     
-def compare_models(version_list, by_model_type=None, best_model=None, verbose=1, naming_convention=None):
+def compare_models(version_list, by_model_type=None, best_model=None, verbose=1, naming_convention=None, submission_type='competition'):
 
     ml_framework_list = []
     model_type_list = []
@@ -693,7 +696,7 @@ def compare_models(version_list, by_model_type=None, best_model=None, verbose=1,
     for i in version_list: 
         
         s3 = boto3.resource('s3')
-        obj = s3.Object("$bucket_name", "$unique_model_id/"+"inspect_pd_"+str(i)+".json")
+        obj = s3.Object("$bucket_name", "$unique_model_id/"+submission_type+"/inspect_pd_"+str(i)+".json")
         data = obj.get()['Body'].read()
         model_dict_temp = json.loads(data)
 
@@ -1398,19 +1401,19 @@ def _get_file_list(client, bucket,keysubfolderid):
         objectlist=[]
         paginator = client.get_paginator('list_objects')
         pages = paginator.paginate(Bucket=bucket, Prefix=keysubfolderid)
-​
+
         for page in pages:
             for obj in page['Contents']:
                 objectlist.append(obj['Key'])
-​m
+
     except Exception as err:
         return None, err
-​
+
     file_list = []
     for key in objectlist:
-            file_list.append(key.split("/")[1])
+            file_list.append(key.split("/")[-1])
     #  }}}
-​
+
     return file_list, None
 
 
@@ -1478,7 +1481,7 @@ def get_authorizedcompetitionuserdata(example_data_filename = "competitionuserda
     bucket = s3.Bucket("$bucket_name")
 
     with open("/tmp/competitionuserdata.json", "wb") as exampledatapath:
-        bucket.download_fileobj("$unique_model_id/competitionuserdata.json",  exampledatapath)
+        bucket.download_fileobj("$unique_model_id/"+example_data_filename,  exampledatapath)
     competitionuserdatajson = json.load(open("/tmp/competitionuserdata.json","rb") ) 
     return competitionuserdatajson
 

@@ -918,7 +918,7 @@ def inspect_model_aws(apiurl, version=None):
     
     return inspect_pd
 
-def inspect_model_lambda(apiurl, version=None, naming_convention = None):
+def inspect_model_lambda(apiurl, version=None, naming_convention = None, submission_type="competition"):
     if all(["username" in os.environ, 
            "password" in os.environ]):
         pass
@@ -929,7 +929,9 @@ def inspect_model_lambda(apiurl, version=None, naming_convention = None):
                "return_eval": "False",
                "return_y": "False",
                "inspect_model": "True",
-               "version": version}
+               "version": version,
+               "submission_type": submission_type
+               }
     
     headers = { 'Content-Type':'application/json', 'authorizationToken': os.environ.get("AWS_TOKEN"),} 
 
@@ -989,7 +991,8 @@ def inspect_model_dict(apiurl, version=None, naming_convention = None):
 
 
 
-def inspect_model(apiurl, version=None, naming_convention=None):
+def inspect_model(apiurl, version=None, naming_convention=None, submission_type="competition"):
+
     if all(["username" in os.environ, 
            "password" in os.environ]):
         pass
@@ -997,7 +1000,7 @@ def inspect_model(apiurl, version=None, naming_convention=None):
         return print("'Inspect Model' unsuccessful. Please provide credentials with set_credentials().")
 
     try:
-        inspect_pd = inspect_model_lambda(apiurl, version)
+        inspect_pd = inspect_model_lambda(apiurl, version, submission_type)
     except:
 
         try: 
@@ -1411,7 +1414,7 @@ def compare_models_aws(apiurl, version_list=None,
 
 
 def compare_models_lambda(apiurl, version_list="None", 
-    by_model_type=None, best_model=None, verbose=1, naming_convention=None):
+    by_model_type=None, best_model=None, verbose=1, naming_convention=None, submission_type="competition"):
     if all(["username" in os.environ, 
            "password" in os.environ]):
         pass
@@ -1426,7 +1429,8 @@ def compare_models_lambda(apiurl, version_list="None",
                "compare_models": "True",
                "version_list": version_list,
                "verbose": verbose, 
-               "naming_convention": naming_convention}
+               "naming_convention": naming_convention,
+               "submission_type": submission_type}
     
     headers = { 'Content-Type':'application/json', 'authorizationToken': os.environ.get("AWS_TOKEN"),} 
 
@@ -1442,7 +1446,7 @@ def compare_models_lambda(apiurl, version_list="None",
 
 
 def compare_models(apiurl, version_list="None", 
-    by_model_type=None, best_model=None, verbose=1, naming_convention=None):
+    by_model_type=None, best_model=None, verbose=1, naming_convention=None, submission_type="submission_type"):
 
     if all(["username" in os.environ, 
            "password" in os.environ]):
@@ -1455,7 +1459,7 @@ def compare_models(apiurl, version_list="None",
     
     try: 
         compare_pd = compare_models_lambda(apiurl, version_list, 
-            by_model_type, best_model, verbose, naming_convention)
+            by_model_type, best_model, verbose, naming_convention, submission_type)
 
     except: 
 

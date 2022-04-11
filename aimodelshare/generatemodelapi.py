@@ -584,7 +584,7 @@ def create_competition(apiurl, data_directory, y_test, eval_metric_filepath=None
     datauri=share_data_codebuild(account_number,os.environ.get("AWS_REGION"),data_directory)
     
     #create and upload json file with list of authorized users who can submit to this competition.
-    _create_competitionuserauth_json(apiurl, email_list,public,datauri['ecr_uri'])
+    _create_competitionuserauth_json(apiurl, email_list,public,datauri['ecr_uri'], submission_type="competition")
     _create_public_private_split_json(apiurl, public_private_split)
 
     bodydata = {"unique_model_id": model_id,
@@ -625,9 +625,9 @@ def create_competition(apiurl, data_directory, y_test, eval_metric_filepath=None
 
 def create_experiment(apiurl, data_directory, y_test, eval_metric_filepath=None, email_list=[], public=False, public_private_split=0):
     """
-    Creates a model competition for a deployed prediction REST API
+    Creates a model experiment for a deployed prediction REST API
     Inputs : 4
-    Output : Create ML model competition and allow authorized users to submit models to resulting leaderboard/competition
+    Output : Create ML model experiment and allow authorized users to submit models to resulting leaderboard/competition
     
     ---------
     Parameters
@@ -717,11 +717,11 @@ def create_experiment(apiurl, data_directory, y_test, eval_metric_filepath=None,
 
     print("\n--INPUT COMPETITION DETAILS--\n")
 
-    aishare_competitionname = input("Enter competition name:")
-    aishare_competitiondescription = input("Enter competition description:")
+    aishare_competitionname = input("Enter experiment name:")
+    aishare_competitiondescription = input("Enter experiment description:")
 
     print("\n--INPUT DATA DETAILS--\n")
-    print("Note: (optional) Save an optional LICENSE.txt file in your competition data directory to make users aware of any restrictions on data sharing/usage.\n")
+    print("Note: (optional) Save an optional LICENSE.txt file in your experiment data directory to make users aware of any restrictions on data sharing/usage.\n")
 
     aishare_datadescription = input(
         "Enter data description (i.e.- filenames denoting training and test data, file types, and any subfolders where files are stored):")
@@ -737,7 +737,7 @@ def create_experiment(apiurl, data_directory, y_test, eval_metric_filepath=None,
     datauri=share_data_codebuild(account_number,os.environ.get("AWS_REGION"),data_directory)
     
     #create and upload json file with list of authorized users who can submit to this competition.
-    _create_competitionuserauth_json(apiurl, email_list,public,datauri['ecr_uri'])
+    _create_competitionuserauth_json(apiurl, email_list,public,datauri['ecr_uri'], submission_type="experiment")
     _create_public_private_split_json(apiurl, public_private_split)
 
     bodydata = {"unique_model_id": model_id,
@@ -762,14 +762,14 @@ def create_experiment(apiurl, data_directory, y_test, eval_metric_filepath=None,
                   json=bodydata, headers=headers_with_authentication)
 
       
-    final_message = ("\n Success! Model competition created. \n\n"
+    final_message = ("\n Success! Model experiment created. \n\n"
                 "You may now update your prediction API runtime model and verify evaluation metrics with the update_runtime_model() function.\n\n"
                 "To upload new models and/or preprocessors to this API, team members should use \n"
                 "the following credentials:\n\napiurl='" + apiurl+"'"+"\nfrom aimodelshare.aws import set_credentials\nset_credentials(apiurl=apiurl)\n\n"
-                "They can then submit models to your competition by using the following code: \n\ncompetition= ai.Competition(apiurl)\n"
+                "They can then submit models to your experiment by using the following code: \n\nexperiment= ai.Experiment(apiurl)\n"
                 "download_data('"+datauri['ecr_uri']+"') \n"
                  "# Use this data to preprocess data and train model. Write and save preprocessor fxn, save model to onnx file, generate predicted y values\n using X test data, then submit a model below.\n\n"
-                "competition.submit_model(model_filepath, preprocessor_filepath, prediction_submission_list)")
+                "experiment.submit_model(model_filepath, preprocessor_filepath, prediction_submission_list)")
   
     return print(final_message)
 
@@ -817,7 +817,7 @@ def _create_public_private_split_json(apiurl, split=0.5):
       
       return
 
-def _create_competitionuserauth_json(apiurl, email_list=[],public=False, datauri=None): 
+def _create_competitionuserauth_json(apiurl, email_list=[],public=False, datauri=None, submission_type="competition"): 
       import json
       if all(["AWS_ACCESS_KEY_ID" in os.environ, 
             "AWS_SECRET_ACCESS_KEY" in os.environ,
@@ -857,12 +857,12 @@ def _create_competitionuserauth_json(apiurl, email_list=[],public=False, datauri
           json.dump({"emaillist": email_list, "public":str(public).upper(),"datauri":str(datauri)}, f, ensure_ascii=False, indent=4)
 
       aws_client['client'].upload_file(
-            tempdir.name+"/competitionuserdata.json", api_bucket, model_id + "/competitionuserdata.json"
+            tempdir.name+"/competitionuserdata.json", api_bucket, model_id +"/"+submission_type+"/competitionuserdata.json"
         )
       
       return
 
-def update_access_list(apiurl, email_list=[],update_type="Add"): 
+def update_access_list(apiurl, email_list=[],update_type="Add", submission_type="competition"):
       """
       Updates list of authenticated participants who can submit new models to a competition.
       ---------------
@@ -922,7 +922,7 @@ def update_access_list(apiurl, email_list=[],update_type="Add"):
           import json  
           import tempfile
           tempdir = tempfile.TemporaryDirectory()
-          content_object = aws_client['resource'].Object(bucket_name=api_bucket, key=model_id + "/competitionuserdata.json")
+          content_object = aws_client['resource'].Object(bucket_name=api_bucket, key=model_id +"/"+submission_type+"/competitionuserdata.json")
           file_content = content_object.get()['Body'].read().decode('utf-8')
           json_content = json.loads(file_content)
           json_content['emaillist']=email_list
@@ -930,13 +930,13 @@ def update_access_list(apiurl, email_list=[],update_type="Add"):
               json.dump(json_content, f, ensure_ascii=False, indent=4)
 
           aws_client['client'].upload_file(
-                tempdir.name+"/competitionuserdata.json", api_bucket, model_id + "/competitionuserdata.json"
+                tempdir.name+"/competitionuserdata.json", api_bucket, model_id +"/"+submission_type+"/competitionuserdata.json"
             )
       elif update_type=="Add":
           import json  
           import tempfile
           tempdir = tempfile.TemporaryDirectory()
-          content_object = aws_client['resource'].Object(bucket_name=api_bucket, key=model_id + "/competitionuserdata.json")
+          content_object = aws_client['resource'].Object(bucket_name=api_bucket, key=model_id +"/"+submission_type+"/competitionuserdata.json")
           file_content = content_object.get()['Body'].read().decode('utf-8')
           json_content = json.loads(file_content)
 
@@ -949,7 +949,7 @@ def update_access_list(apiurl, email_list=[],update_type="Add"):
               json.dump(json_content, f, ensure_ascii=False, indent=4)
 
           aws_client['client'].upload_file(
-                tempdir.name+"/competitionuserdata.json", api_bucket, model_id + "/competitionuserdata.json"
+                tempdir.name+"/competitionuserdata.json", api_bucket, model_id +"/"+submission_type+"/competitionuserdata.json"
             )
      
           return "Success: Your competition participant access list is now updated."
@@ -959,7 +959,7 @@ def update_access_list(apiurl, email_list=[],update_type="Add"):
           tempdir = tempfile.TemporaryDirectory()
     
           aws_client['resource']
-          content_object = aws_client['resource'].Object(bucket_name=api_bucket, key=model_id + "/competitionuserdata.json")
+          content_object = aws_client['resource'].Object(bucket_name=api_bucket, key=model_id +"/"+submission_type+"/competitionuserdata.json")
           file_content = content_object.get()['Body'].read().decode('utf-8')
           json_content = json.loads(file_content)
 
@@ -972,7 +972,7 @@ def update_access_list(apiurl, email_list=[],update_type="Add"):
               json.dump(json_content, f, ensure_ascii=False, indent=4)
 
           aws_client['client'].upload_file(
-                tempdir.name+"/competitionuserdata.json", api_bucket, model_id + "/competitionuserdata.json"
+                tempdir.name+"/competitionuserdata.json", api_bucket, model_id +"/"+submission_type+"/competitionuserdata.json"
             )
           return "Success: Your competition participant access list is now updated."
       elif update_type=="Get":
@@ -981,7 +981,7 @@ def update_access_list(apiurl, email_list=[],update_type="Add"):
           tempdir = tempfile.TemporaryDirectory()
 
           aws_client['resource']
-          content_object = aws_client['resource'].Object(bucket_name=api_bucket, key=model_id + "/competitionuserdata.json")
+          content_object = aws_client['resource'].Object(bucket_name=api_bucket, key=model_id +"/"+submission_type+"/competitionuserdata.json")
           file_content = content_object.get()['Body'].read().decode('utf-8')
           json_content = json.loads(file_content)
           return json_content['emaillist']
