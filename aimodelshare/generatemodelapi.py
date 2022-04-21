@@ -14,21 +14,21 @@ import sys
 import base64
 import mimetypes
 import numpy as np
+import pandas as pd
 from aimodelshare.tools import extract_varnames_fromtrainingdata, _get_extension_from_filepath
 from aimodelshare.aws import get_s3_iam_client, run_function_on_lambda, get_token, get_aws_token, get_aws_client
 from aimodelshare.bucketpolicy import _custom_upload_policy
 from aimodelshare.exceptions import AuthorizationError, AWSAccessError, AWSUploadError
-from aimodelshare.api import create_prediction_api
 from aimodelshare.api import get_api_json
 from aimodelshare.modeluser import create_user_getkeyandpassword
 from aimodelshare.preprocessormodules import upload_preprocessor
 from aimodelshare.model import _get_predictionmodel_key, _extract_model_metadata
 from aimodelshare.data_sharing.share_data import share_data_codebuild
-from aimodelshare.containerization import clone_base_image
 from aimodelshare.aimsonnx import _get_metadata
 
-
-def take_user_info_and_generate_api(model_filepath, model_type, categorical,labels, preprocessor_filepath,custom_libraries, requirements, exampledata_json_filepath, repo_name, image_tag, reproducibility_env_filepath, memory, timeout):
+def take_user_info_and_generate_api(model_filepath, model_type, categorical,labels, preprocessor_filepath,
+                                    custom_libraries, requirements, exampledata_json_filepath, repo_name, 
+                                    image_tag, reproducibility_env_filepath, memory, timeout, pyspark_support=False):
     """
     Generates an api using model parameters and user credentials, from the user
 
@@ -94,10 +94,29 @@ def take_user_info_and_generate_api(model_filepath, model_type, categorical,labe
     api_id = response2['id']
     now = datetime.datetime.now()
     s3, iam, region = get_s3_iam_client(os.environ.get("AWS_ACCESS_KEY_ID"), os.environ.get("AWS_SECRET_ACCESS_KEY"), os.environ.get("AWS_REGION"))
-    s3["client"].create_bucket(
-        ACL='private',
-        Bucket=os.environ.get("BUCKET_NAME"))
+    
+    def create_bucket(s3_client, bucket_name, region):
+        try:
+            response=s3_client.head_bucket(Bucket=bucket_name)
+        except:
+            if(region=="us-east-1"):
+                response = s3_client.create_bucket(
+                    ACL="private",
+                    Bucket=bucket_name
+                )
+            else:
+                location={'LocationConstraint': region}
+                response=s3_client.create_bucket(
+                    ACL="private",
+                    Bucket=bucket_name,
+                    CreateBucketConfiguration=location
+                )
+        return response
+
+    create_bucket(s3['client'], os.environ.get("BUCKET_NAME"), region)
+
     # model upload
+
     Filepath = model_filepath
     model = onnx.load(model_filepath)
     metadata = _extract_model_metadata(model)
@@ -171,8 +190,11 @@ def take_user_info_and_generate_api(model_filepath, model_type, categorical,labe
     sys.stdout.flush()
     # }}}
     
+    from aimodelshare.api import create_prediction_api
     apiurl = create_prediction_api(model_filepath, unique_model_id,
-                                   model_type, categorical, labels,api_id,custom_libraries, requirements, repo_name, image_tag, memory, timeout)
+                                   model_type, categorical, labels,api_id,
+                                   custom_libraries, requirements, repo_name, 
+                                   image_tag, memory, timeout, pyspark_support=pyspark_support)
 
     finalresult = [apiurl["body"], apiurl["statusCode"],
                    now, unique_model_id, os.environ.get("BUCKET_NAME"), input_shape]
@@ -319,7 +341,10 @@ def send_model_data_to_dyndb_and_return_api(api_info, private, categorical, prep
     return print("\n\n" + finalresult2 + "\n" + final_message + web_dashboard_url)
 
 
-def model_to_api(model_filepath, model_type, private, categorical, y_train, preprocessor_filepath, custom_libraries="FALSE", example_data=None, image="", base_image_api_endpoint="https://vupwujn586.execute-api.us-east-1.amazonaws.com/dev/copybasetouseracct", update=False, reproducibility_env_filepath=None, memory=None, timeout=None):
+def model_to_api(model_filepath, model_type, private, categorical, y_train, preprocessor_filepath, 
+                custom_libraries="FALSE", example_data=None, image="", 
+                base_image_api_endpoint="https://vupwujn586.execute-api.us-east-1.amazonaws.com/dev/copybasetouseracct", 
+                update=False, reproducibility_env_filepath=None, memory=None, timeout=None, pyspark_support=False):
     """
       Launches a live prediction REST API for deploying ML models using model parameters and user credentials, provided by the user
       Inputs : 8
@@ -395,7 +420,12 @@ def model_to_api(model_filepath, model_type, private, categorical, y_train, prep
         repo_name, image_tag = "aimodelshare_base_image", "v3"
     else:
         repo_name, image_tag = "aimodelshare_base_image", "v3"
+
+    # Pyspark mode
+    if pyspark_support:
+        repo_name, image_tag = "aimodelshare_base_image", "pyspark"
     
+    from aimodelshare.containerization import clone_base_image
     response = clone_base_image(user_session, repo_name, image_tag, "517169013426", base_image_api_endpoint, update)
     if(response["Status"]==0):
         print(response["Success"])
@@ -421,7 +451,7 @@ def model_to_api(model_filepath, model_type, private, categorical, y_train, prep
 
     # Force user to provide example data for tabular models {{{
     if any([model_type.lower() == "tabular", model_type.lower() == "timeseries"]):
-        if example_data is None:
+        if not isinstance(example_data, pd.DataFrame):
             return print("Error: Example data is required for tabular models. \n Please provide a pandas DataFrame with a sample of your X data (in the format expected by your preprocessor) and try again.")
     else:
         pass
@@ -453,9 +483,12 @@ def model_to_api(model_filepath, model_type, private, categorical, y_train, prep
     sys.stdout.write("[===                                  ] Progress: 5% - Accessing Amazon Web Services, uploading resources...")
     sys.stdout.flush()
     # }}}
-    
+
     api_info = take_user_info_and_generate_api( 
-        model_filepath, model_type, categorical, labels,preprocessor_filepath,custom_libraries, requirements, exampledata_json_filepath, repo_name, image_tag, reproducibility_env_filepath, memory, timeout)
+        model_filepath, model_type, categorical, labels, 
+        preprocessor_filepath, custom_libraries, requirements, 
+        exampledata_json_filepath, repo_name, image_tag, 
+        reproducibility_env_filepath, memory, timeout, pyspark_support=pyspark_support)
 
     ### Progress Update #5/6 {{{
     sys.stdout.write('\r')
