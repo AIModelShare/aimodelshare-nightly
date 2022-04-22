@@ -949,7 +949,9 @@ def submit_model(
                 "modelsubmissiondescription": modelsubmissiondescription,
                 "modelsubmissiontags":modelsubmissiontags,
                   "eval_metrics":json.dumps(eval_metrics_subset_nonulls),
-                  "eval_metrics_private":json.dumps(eval_metrics_private_subset_nonulls)
+                  "eval_metrics_private":json.dumps(eval_metrics_private_subset_nonulls),
+                  "submission_type": submission_type
+
                   }
 
     bodydatamodels.update(modelleaderboarddata_cleaned)
