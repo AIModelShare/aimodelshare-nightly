@@ -776,6 +776,7 @@ def create_experiment(apiurl, data_directory, y_test, eval_metric_filepath=None,
     bodydata = {"unique_model_id": model_id,
                 "bucket_name": api_bucket,
                 "apideveloper": os.environ.get("username"),  # change this to first and last name
+                "experiment":"TRUE",
                 "competitionname":aishare_competitionname,                
                 "competitiondescription": aishare_competitiondescription,
                 # getting rid of extra quotes that screw up dynamodb string search on apiurls
