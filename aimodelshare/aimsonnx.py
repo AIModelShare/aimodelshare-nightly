@@ -505,6 +505,17 @@ def _pyspark_to_onnx(model, initial_types, spark_session,
 
     return onx
 
+def _parse_tf_saved_model_layer(layer):
+    model_weights_raw_string = str(layer)
+    model_weights_wo_weights = model_weights_raw_string.split(", numpy", 1)[0]
+    shape = model_weights_wo_weights.split(" shape=")[1].split(" dtype=")[0]
+    params = [int(x) for x in shape[1:-1].split(",") if x != ""]
+    n_params = 1
+    for x in params:
+        n_params *= x
+    name = layer.name
+    return name, shape, n_params
+
 def _keras_to_onnx(model, transfer_learning=None,
                   deep_learning=None, task_type=None, epochs=None):
     '''Extracts metadata from keras model object.'''
@@ -537,9 +548,14 @@ def _keras_to_onnx(model, transfer_learning=None,
     tf.get_logger().setLevel('ERROR') # probably not good practice
     output_path = os.path.join(temp_dir, 'temp.onnx')
     
-    
-    model.save(temp_dir)
-
+    try:
+        model.save(temp_dir)
+    except:
+        # a SavedModel class
+        tf.saved_model.save(
+            model, temp_dir
+        )
+        
     # Convert the model
     try:
             modelstringtest="python -m tf2onnx.convert --saved-model  "+temp_dir+" --output "+output_path+" --opset 13"
@@ -604,13 +620,19 @@ def _keras_to_onnx(model, transfer_learning=None,
     metadata['input_distribution'] = None
 
     # get model config dict from keras model object
-    metadata['model_config'] = str(model.get_config())
+    if hasattr(model, "get_config"):
+        metadata['model_config'] = str(model.get_config())
+    else:
+        metadata['model_config'] = str({})
 
     # get model weights from keras object 
     def to_list(x):
         return x.tolist()
 
-    metadata['model_weights'] = str(list(map(to_list, model.get_weights())))
+    if hasattr(model, "get_weights"):
+        metadata['model_weights'] = str(list(map(to_list, model.get_weights())))
+    else:
+        metadata['model_weights'] = str([])
 
     # get model state from pytorch model object
     metadata['model_state'] = None
@@ -624,19 +646,50 @@ def _keras_to_onnx(model, transfer_learning=None,
     layers_shapes = []
     activations = []
     
-    for i in model.layers: 
-        
-        # get layer names 
-        if i.__class__.__name__ in layer_list:
-            layers.append(i.__class__.__name__)
-            layers_n_params.append(i.count_params())
-            layers_shapes.append(i.output_shape)
-        
-        # get activation names
-        if i.__class__.__name__ in activation_list: 
-            activations.append(i.__class__.__name__.lower())
-        if hasattr(i, 'activation') and i.activation.__name__ in activation_list:
-            activations.append(i.activation.__name__)
+    if model.__class__.__name__ == 'KerasLayer':
+        for i in range(len(model.weights)):
+            name, shape, n_params = _parse_tf_saved_model_layer(model.weights[i])
+            layers.append(name)
+            layers_n_params.append(n_params)
+            layers_shapes.append(shape) # not output shape
+    elif model.__class__.__name__ == 'AutoTrackable':
+        for i in range(len(model.variables)):
+            name, shape, n_params = _parse_tf_saved_model_layer(model.variables[i])
+            layers.append(name)
+            layers_n_params.append(n_params)
+            layers_shapes.append(shape) # not output shape
+    # only has tf.function and signatures method.
+    elif model.__class__.__name__ == '_UserObject': 
+        if hasattr(model.signatures['serving_default'], 'weights'):
+            for i in range(len(model.signatures['serving_default'].weights)):
+                name, shape, n_params = _parse_tf_saved_model_layer(
+                    model.signatures['serving_default'].weights[i]
+                )
+                layers.append(name)
+                layers_n_params.append(n_params)
+                layers_shapes.append(shape) # not output shape
+        elif hasattr(model.signatures['serving_default'], 'variables'):
+            for i in range(len(model.signatures['serving_default'].variables)):
+                name, shape, n_params = _parse_tf_saved_model_layer(
+                    model.signatures['serving_default'].variables[i]
+                )
+                layers.append(name)
+                layers_n_params.append(n_params)
+                layers_shapes.append(shape) # not output shape
+    else:
+        for i in model.layers: 
+            
+            # get layer names 
+            if i.__class__.__name__ in layer_list:
+                layers.append(i.__class__.__name__)
+                layers_n_params.append(i.count_params())
+                layers_shapes.append(i.output_shape)
+            
+            # get activation names
+            if i.__class__.__name__ in activation_list: 
+                activations.append(i.__class__.__name__.lower())
+            if hasattr(i, 'activation') and i.activation.__name__ in activation_list:
+                activations.append(i.activation.__name__)
 
     if hasattr(model, 'loss'):
         loss = model.loss.__class__.__name__
@@ -671,8 +724,11 @@ def _keras_to_onnx(model, transfer_learning=None,
     metadata['epochs'] = epochs
 
     # model graph 
-    G = model_graph_keras(model)
-    metadata['model_graph'] = G.create_dot().decode('utf-8')
+    if model.__class__.__name__ not in ['KerasLayer', 'AutoTrackable', '_UserObject']:
+        G = model_graph_keras(model)
+        metadata['model_graph'] = G.create_dot().decode('utf-8')
+    else:
+        metadata['model_graph'] = None
 
     # placeholder, needs evaluation engine
     metadata['eval_metrics'] = None
@@ -1663,41 +1719,83 @@ def model_summary_keras(model):
     layer_connect = []
     activations = []
 
-
-    for i in model.layers: 
-
-        try:
-            layer_names.append(i.name)
-        except:
-            layer_names.append(None)
-
-        try:
-            layer_types.append(i.__class__.__name__)
-        except:
+    if model.__class__.__name__ == 'KerasLayer':
+        for i in range(len(model.weights)):
+            name, shape, n_params = _parse_tf_saved_model_layer(model.weights[i])
+            layer_names.append(name)
+            layer_n_params.append(n_params)
+            layer_shapes.append(shape) # not output shape
             layer_types.append(None)
-
-        try:
-            layer_shapes.append(i.output_shape)
-        except:
-            layer_shapes.append(None)
-
-        try:
-            layer_n_params.append(i.count_params())
-        except:
-            layer_n_params.append(None)
-
-        try:
-            if isinstance(i.inbound_nodes[0].inbound_layers, list):
-              layer_connect.append([x.name for x in i.inbound_nodes[0].inbound_layers])
-            else: 
-              layer_connect.append(i.inbound_nodes[0].inbound_layers.name)
-        except:
             layer_connect.append(None)
-
-        try: 
-            activations.append(i.activation.__name__)
-        except:
             activations.append(None)
+    elif model.__class__.__name__ == 'AutoTrackable':
+        for i in range(len(model.variables)):
+            name, shape, n_params = _parse_tf_saved_model_layer(model.variables[i])
+            layer_names.append(name)
+            layer_n_params.append(n_params)
+            layer_shapes.append(shape) # not output shape
+            layer_types.append(None)
+            layer_connect.append(None)
+            activations.append(None)
+    # only has tf.function and signatures method.
+    elif model.__class__.__name__ == '_UserObject': 
+        if hasattr(model.signatures['serving_default'], 'weights'):
+            for i in range(len(model.signatures['serving_default'].weights)):
+                name, shape, n_params = _parse_tf_saved_model_layer(
+                    model.signatures['serving_default'].weights[i]
+                )
+                layer_names.append(name)
+                layer_n_params.append(n_params)
+                layer_shapes.append(shape) # not output shape
+                layer_types.append(None)
+                layer_connect.append(None)
+                activations.append(None)
+        elif hasattr(model.signatures['serving_default'], 'variables'):
+            for i in range(len(model.signatures['serving_default'].variables)):
+                name, shape, n_params = _parse_tf_saved_model_layer(
+                    model.signatures['serving_default'].variables[i]
+                )
+                layer_names.append(name)
+                layer_n_params.append(n_params)
+                layer_shapes.append(shape) # not output shape
+                layer_types.append(None)
+                layer_connect.append(None)
+                activations.append(None)
+    else:
+        for i in model.layers: 
+
+            try:
+                layer_names.append(i.name)
+            except:
+                layer_names.append(None)
+
+            try:
+                layer_types.append(i.__class__.__name__)
+            except:
+                layer_types.append(None)
+
+            try:
+                layer_shapes.append(i.output_shape)
+            except:
+                layer_shapes.append(None)
+
+            try:
+                layer_n_params.append(i.count_params())
+            except:
+                layer_n_params.append(None)
+
+            try:
+                if isinstance(i.inbound_nodes[0].inbound_layers, list):
+                    layer_connect.append([x.name for x in i.inbound_nodes[0].inbound_layers])
+                else: 
+                    layer_connect.append(i.inbound_nodes[0].inbound_layers.name)
+            except:
+                layer_connect.append(None)
+
+            try: 
+                activations.append(i.activation.__name__)
+            except:
+                activations.append(None)
 
 
     model_summary = pd.DataFrame({"Name": layer_names,

@@ -76,14 +76,16 @@ class create_prediction_api_class():
             "tabular": 1024,
             "text": 1024,
             "image": 1024,
-            "video": 1024
+            "video": 1024,
+            "object_detection": 1024,
         }
 
         self.timeout_model_mapping = {
             "tabular": 30,
             "text": 30,
             "image": 30,
-            "video": 30
+            "video": 30,
+            "object_detection": 30,
         }
 
         self.eval_layer_map = {
@@ -146,7 +148,8 @@ class create_prediction_api_class():
                 "image": "2.txt",
                 "tabular": "4.txt",
                 "audio": "7.txt",
-                "video": "8.txt"
+                "video": "8.txt",
+                "object_detection": "9.txt"
             },
             "regression": {
                 "text": "1B.txt",
