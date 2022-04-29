@@ -618,7 +618,7 @@ def create_competition(apiurl, data_directory, y_test, eval_metric_filepath=None
     
     #create and upload json file with list of authorized users who can submit to this competition.
     _create_competitionuserauth_json(apiurl, email_list,public,datauri['ecr_uri'], submission_type="competition")
-    _create_public_private_split_json(apiurl, public_private_split)
+    _create_public_private_split_json(apiurl, public_private_split, "competition")
 
     bodydata = {"unique_model_id": model_id,
                 "bucket_name": api_bucket,
@@ -656,7 +656,7 @@ def create_competition(apiurl, data_directory, y_test, eval_metric_filepath=None
 
 
 
-def create_experiment(apiurl, data_directory, y_test, eval_metric_filepath=None, email_list=[], public=False, public_private_split=0):
+def create_experiment(apiurl, data_directory, y_test, eval_metric_filepath=None, email_list=[], public=False, public_private_split=0.5):
     """
     Creates a model experiment for a deployed prediction REST API
     Inputs : 4
@@ -771,7 +771,7 @@ def create_experiment(apiurl, data_directory, y_test, eval_metric_filepath=None,
     
     #create and upload json file with list of authorized users who can submit to this competition.
     _create_competitionuserauth_json(apiurl, email_list,public,datauri['ecr_uri'], submission_type="experiment")
-    _create_public_private_split_json(apiurl, public_private_split)
+    _create_public_private_split_json(apiurl, public_private_split, "experiment")
 
     bodydata = {"unique_model_id": model_id,
                 "bucket_name": api_bucket,
@@ -807,7 +807,7 @@ def create_experiment(apiurl, data_directory, y_test, eval_metric_filepath=None,
   
     return print(final_message)
 
-def _create_public_private_split_json(apiurl, split=0.5): 
+def _create_public_private_split_json(apiurl, split=0.5, submission_type='competition'): 
       import json
       if all(["AWS_ACCESS_KEY_ID" in os.environ, 
             "AWS_SECRET_ACCESS_KEY" in os.environ,
@@ -846,7 +846,7 @@ def _create_public_private_split_json(apiurl, split=0.5):
           json.dump({"public_private_split": str(split)}, f, ensure_ascii=False, indent=4)
 
       aws_client['client'].upload_file(
-            tempdir.name+"/public_private_split.json", api_bucket, model_id + "/public_private_split.json"
+            tempdir.name+"/public_private_split.json", api_bucket, model_id +"/"+submission_type+"/public_private_split.json"
         )
       
       return

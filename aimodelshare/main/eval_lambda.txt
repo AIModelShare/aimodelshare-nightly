@@ -69,8 +69,8 @@ def handler(event, context):
             idempotentmodel_version=json.loads(event['requestContext']['authorizer']['uniquemodversion'])
 
             ytestdata=get_ytestdata(ytest_s3_filename=submission_type+"/"+"ytest.pkl")
-      
-            eval_result = evaluate_model(body, ytestdata)
+            
+            eval_result = evaluate_model(body, ytestdata, submission_type=submission_type)
 
             bucket="$bucket_name"
             model_id="$unique_model_id"
@@ -458,14 +458,14 @@ def analyze_ytest(ytestdata, task_type="$task_type"):
 
 
 
-def public_private_split(y_true, y_pred, task_type="$task_type"):
+def public_private_split(y_true, y_pred, task_type="$task_type", submission_type="competition"):
 
     if task_type == "classification":
         strat = y_true
     elif task_type == "regression":
         strat = None
 
-    private_size = get_public_private_split()
+    private_size = get_public_private_split(submission_type=submission_type)
     
     if private_size == 1: 
         
@@ -597,14 +597,14 @@ def model_eval_metrics(y_true, y_pred, task_type="$task_type", void = False):
     return finalmetricdata.to_dict('records')[0]
 
 
-def evaluate_model(body, ytestdata):
+def evaluate_model(body, ytestdata, submission_type="competition"):
 
     if isinstance(body["y_pred"], six.string_types):
         prediction_list = json.loads(body["y_pred"])
     else:
         prediction_list = body["y_pred"]
 
-    result=public_private_split(ytestdata, prediction_list, task_type="$task_type")
+    result=public_private_split(ytestdata, prediction_list, task_type="$task_type", submission_type=submission_type)
 
     return result
     
@@ -1483,12 +1483,12 @@ def get_authorizedcompetitionuserdata(example_data_filename = "competitionuserda
     competitionuserdatajson = json.load(open("/tmp/competitionuserdata.json","rb") ) 
     return competitionuserdatajson
 
-def get_public_private_split():
+def get_public_private_split(submission_type="competition"):
     s3 = boto3.resource("s3")
     bucket = s3.Bucket("$bucket_name")
 
     with open("/tmp/public_private_split.json", "wb") as exampledatapath:
-        bucket.download_fileobj("$unique_model_id/public_private_split.json",  exampledatapath)
+        bucket.download_fileobj("$unique_model_id/"+submission_type+"/public_private_split.json",  exampledatapath)
     public_private_split_dict = json.load(open("/tmp/public_private_split.json","rb")) 
     return float(public_private_split_dict["public_private_split"])
 

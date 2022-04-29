@@ -123,7 +123,7 @@ class ModelPlayground:
                                     public_private_split)
         return competition
         
-    def create_experiment(self, data_directory, y_test, eval_metric_filepath=None, email_list = [], public=False):
+    def create_experiment(self, data_directory, y_test, eval_metric_filepath=None, email_list = [], public=False, public_private_split=0.5):
         """
         Creates an experiment for a deployed prediction REST API
         Inputs : 4
@@ -153,7 +153,7 @@ class ModelPlayground:
                                     eval_metric_filepath,
                                     email_list, 
                                     public,
-                                    public_private_split=0)
+                                    public_private_split)
         return experiment
 
     def submit_model(self, model_filepath, preprocessor_filepath, prediction_submission):
