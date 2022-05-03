@@ -63,7 +63,7 @@ def handler(event, context):
     
         if body.get("return_eval","ALL")  == "True":
         
-            submission_type = body.get("submission_type","competition)
+            submission_type = body.get("submission_type","competition")
             print(submission_type)
 
             idempotentmodel_version=json.loads(event['requestContext']['authorizer']['uniquemodversion'])
