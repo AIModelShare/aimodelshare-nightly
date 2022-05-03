@@ -33,7 +33,8 @@ class ModelPlayground:
     def __str__(self):
         return f"ModelPlayground instance of model type: {self.model_type}, classification: {self.categorical},  private: {self.private}"
     
-    def deploy(self, model_filepath, preprocessor_filepath, y_train, example_data=None, custom_libraries = "FALSE", image="", reproducibility_env_filepath=None, memory=None, timeout=None, pyspark_support=False):
+
+    def deploy(self, model_filepath, preprocessor_filepath, y_train, example_data=None, custom_libraries = "FALSE", image="", reproducibility_env_filepath=None, memory=None, timeout=None, email_list=[], pyspark_support=False):
 
         """
         Launches a live prediction REST API for deploying ML models using model parameters and user credentials, provided by the user
@@ -65,8 +66,12 @@ class ModelPlayground:
               tabular data - pandas DataFrame in same structure expected by preprocessor function
               other data types - absolute path to folder containing example data
                                 (first five files with relevent file extensions will be accepted)
+                     
               [REQUIRED] for tabular data
-        
+          `email_list`: ``list of string values``
+                values - list including all emails of users who have access the playground.
+                list should contain same emails that were used to sign up for modelshare.org account.
+                [OPTIONAL] set by the playground owner
         Returns:
         --------
         print_api_info : prints statements with generated live prediction API details
@@ -85,8 +90,8 @@ class ModelPlayground:
                                       reproducibility_env_filepath = reproducibility_env_filepath,
                                       memory=memory,
                                       timeout=timeout,
+                                      email_list=email_list,
                                       pyspark_support=pyspark_support)
-
         #remove extra quotes
         self.playground_url = self.playground_url[1:-1]
     
@@ -253,6 +258,27 @@ class ModelPlayground:
     def import_reproducibility_env(self):
         from aimodelshare.reproducibility import import_reproducibility_env_from_model
         import_reproducibility_env_from_model(apiurl=self.playground_url)
+
+    def update_access_list(self, email_list=[], update_type="Replace_list"):
+        """
+        Updates list of authenticated participants who can submit new models to a competition.
+
+        Parameters:
+        -----------
+        `apiurl`: string
+                URL of deployed prediction API 
+          
+        `email_list`: [REQUIRED] list of comma separated emails for users who are allowed to submit models to competition.  Emails should be strings in a list.
+        `update_type`:[REQUIRED] options, ``string``: 'Add', 'Remove', 'Replace_list','Get. Add appends user emails to original list, Remove deletes users from list, 
+                  'Replace_list' overwrites the original list with the new list provided, and Get returns the current list.    
+
+        Returns:
+        --------
+        response:   "Success" upon successful request
+        """
+        from aimodelshare.generatemodelapi import update_access_list as update_list
+        update = update_list(apiurl = self.playground_url, email_list=email_list, update_type=update_type)
+        return update
 
 
 class Competition:
