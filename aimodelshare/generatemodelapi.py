@@ -352,7 +352,7 @@ def send_model_data_to_dyndb_and_return_api(api_info, private, categorical, prep
 def model_to_api(model_filepath, model_type, private, categorical, y_train, preprocessor_filepath, 
                 custom_libraries="FALSE", example_data=None, image="", 
                 base_image_api_endpoint="https://vupwujn586.execute-api.us-east-1.amazonaws.com/dev/copybasetouseracct", 
-                update=False, reproducibility_env_filepath=None, memory=None, timeout=None, , email_list=[],pyspark_support=False):
+                update=False, reproducibility_env_filepath=None, memory=None, timeout=None, email_list=[],pyspark_support=False):
     """
       Launches a live prediction REST API for deploying ML models using model parameters and user credentials, provided by the user
       Inputs : 8
