@@ -810,11 +810,12 @@ def submit_model(
     modelsubmissiontags=input("Insert search tags to help users find your model (optional): ")
     modelsubmissiondescription=input("Provide any useful notes about your model (optional): ")
 
-    #Update competition data
+    #Update competition or experiment data
     bodydata = {"apiurl": apiurl,
                 "submissions": model_version,
                   "contributoruniquenames":os.environ.get('username'),
-                "versionupdateputsubmit":"TRUE"
+                "versionupdateputsubmit":"TRUE",
+                 "submission_type":submission_type
                                 }
 
     # Get the response
