@@ -193,7 +193,7 @@ class ModelPlayground:
         
 
     
-    def update_runtime_model(self, model_version=None):
+    def update_runtime_model(self, model_version=None, submission_type="competition"):
         """
         Updates the prediction API behind the Model Playground with a new model from the leaderboard and verifies Model Playground performance metrics.
 
@@ -208,10 +208,10 @@ class ModelPlayground:
         
         """
         from aimodelshare.model import update_runtime_model as update
-        update = update(apiurl = self.playground_url, model_version = model_version)
+        update = update(apiurl = self.playground_url, model_version = model_version, submission_type=submission_type)
         return update
         
-    def instantiate_model(self, version=None, trained=False, reproduce=False): 
+    def instantiate_model(self, version=None, trained=False, reproduce=False, submission_type="competition"): 
         """
         Import a model previously submitted to a leaderboard to use in your session
 
@@ -227,7 +227,7 @@ class ModelPlayground:
         model: model chosen from leaderboard
         """
         from aimodelshare.aimsonnx import instantiate_model
-        model = instantiate_model(apiurl=self.playground_url, trained=trained, version=version, reproduce=reproduce)
+        model = instantiate_model(apiurl=self.playground_url, trained=trained, version=version, reproduce=reproduce, submission_type=submission_type)
         return model
     
     def delete_deployment(self, playground_url=None):

@@ -980,7 +980,7 @@ def submit_model(
 
     return print("\nYour model has been submitted as model version "+str(model_version)+ "\n\n"+code_comp_result)
 
-def update_runtime_model(apiurl, model_version=None):
+def update_runtime_model(apiurl, model_version=None, submission_type="competition"):
     """
     apiurl: string of API URL that the user wishes to edit
     new_model_version: string of model version number (from leaderboard) to replace original model 
@@ -1018,7 +1018,7 @@ def update_runtime_model(apiurl, model_version=None):
 
     try:
         leaderboard = aws_client["client"].get_object(
-            Bucket=api_bucket, Key=model_id + "/model_eval_data_mastertable.csv"
+            Bucket=api_bucket, Key=model_id +"/"+submission_type+"/model_eval_data_mastertable.csv"
 
 
 
@@ -1029,23 +1029,25 @@ def update_runtime_model(apiurl, model_version=None):
         leaderboardversion=leaderboard[leaderboard['version']==int(model_version)]
         leaderboardversion=leaderboardversion.dropna(axis=1)
         metric_names_subset=list(set(metric_names).intersection(leaderboardversion.columns))
+        print(metric_names_subset)
         leaderboardversiondict=leaderboardversion.loc[:,metric_names_subset].to_dict('records')[0]
+        print(leaderboardversiondict)
     except Exception as err:
         raise err
 
     # Get file list for current bucket {{{
-    model_files, err = _get_file_list(aws_client, api_bucket, model_id)
+    model_files, err = _get_file_list(aws_client, api_bucket, model_id+"/"+submission_type)
     if err is not None:
         raise err
     # }}}
 
     # extract subfolder objects specific to the model id
-    folder = s3.meta.client.list_objects(Bucket=api_bucket, Prefix=model_id+"/")
+    folder = s3.meta.client.list_objects(Bucket=api_bucket, Prefix=model_id+"/"+submission_type+"/")
     bucket = s3.Bucket(api_bucket)
     file_list = [file['Key'] for file in folder['Contents']]
     s3 = boto3.resource('s3')
-    model_source_key = model_id+"/onnx_model_v"+str(model_version)+".onnx"
-    preprocesor_source_key = model_id+"/preprocessor_v"+str(model_version)+".zip"
+    model_source_key = model_id+"/"+submission_type+"/onnx_model_v"+str(model_version)+".onnx"
+    preprocesor_source_key = model_id+"/"+submission_type+"/preprocessor_v"+str(model_version)+".zip"
     model_copy_source = {
           'Bucket': api_bucket,
           'Key': model_source_key
@@ -1065,8 +1067,8 @@ def update_runtime_model(apiurl, model_version=None):
 
     # overwrite runtime_model.onnx file & runtime_preprocessor.zip files: 
     if (model_source_key in file_list) & (preprocesor_source_key in file_list):
-        response = bucket.copy(model_copy_source, model_id+"/"+'runtime_model.onnx')
-        response = bucket.copy(preprocessor_copy_source, model_id+"/"+'runtime_preprocessor.zip')
+        response = bucket.copy(model_copy_source, model_id+"/"+submission_type+"/"+'runtime_model.onnx')
+        response = bucket.copy(preprocessor_copy_source, model_id+"/"+submission_type+"/"+'runtime_preprocessor.zip')
         return print('Runtime model & preprocessor for api: '+apiurl+" updated to model version "+model_version+".\n\nModel metrics are now updated and verified for this model playground.")
     else:
         # the file resource to be the new runtime_model is not available
