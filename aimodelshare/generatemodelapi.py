@@ -28,7 +28,8 @@ from aimodelshare.aimsonnx import _get_metadata
 
 def take_user_info_and_generate_api(model_filepath, model_type, categorical,labels, preprocessor_filepath,
                                     custom_libraries, requirements, exampledata_json_filepath, repo_name, 
-                                    image_tag, reproducibility_env_filepath, memory, timeout, pyspark_support=False):
+                                    image_tag, reproducibility_env_filepath, memory, timeout, task_type="", 
+                                    pyspark_support=False):
     """
     Generates an api using model parameters and user credentials, from the user
 
@@ -58,6 +59,8 @@ def take_user_info_and_generate_api(model_filepath, model_type, categorical,labe
     custom_libraries:   string
                   "TRUE" if user wants to load custom Python libraries to their prediction runtime
                   "FALSE" if user wishes to use AI Model Share base libraries including latest versions of most common ML libs.
+    task_type: string
+              values - [ 'classification', 'regression', 'object_detection' ]
      
 
     -----------
@@ -193,7 +196,7 @@ def take_user_info_and_generate_api(model_filepath, model_type, categorical,labe
     from aimodelshare.api import create_prediction_api
     apiurl = create_prediction_api(model_filepath, unique_model_id,
                                    model_type, categorical, labels,api_id,
-                                   custom_libraries, requirements, repo_name, 
+                                   custom_libraries, requirements, task_type, repo_name, 
                                    image_tag, memory, timeout, pyspark_support=pyspark_support)
 
     finalresult = [apiurl["body"], apiurl["statusCode"],
@@ -342,7 +345,7 @@ def send_model_data_to_dyndb_and_return_api(api_info, private, categorical, prep
 
 
 def model_to_api(model_filepath, model_type, private, categorical, y_train, preprocessor_filepath, 
-                custom_libraries="FALSE", example_data=None, image="", 
+                custom_libraries="FALSE", example_data=None, image="", labels=None, task_type="",
                 base_image_api_endpoint="https://vupwujn586.execute-api.us-east-1.amazonaws.com/dev/copybasetouseracct", 
                 update=False, reproducibility_env_filepath=None, memory=None, timeout=None, pyspark_support=False):
     """
@@ -464,14 +467,17 @@ def model_to_api(model_filepath, model_type, private, categorical, y_train, prep
     if model_type == "tabular" or "keras_tabular" or 'Tabular':
         variablename_and_type_data = extract_varnames_fromtrainingdata(
             example_data)
-    if categorical == "TRUE":
-        try:
-            labels = y_train.columns.tolist()
-        except:
-            #labels = list(set(y_train.to_frame()['tags'].tolist()))
-            labels = list(set(y_train))
-    else:
-        labels = "no data"
+
+    # custom labels
+    if not labels:
+        if categorical == "TRUE":
+            try:
+                labels = y_train.columns.tolist()
+            except:
+                #labels = list(set(y_train.to_frame()['tags'].tolist()))
+                labels = list(set(y_train))
+        else:
+            labels = "no data"
 
     # Create Example Data JSON
     exampledata_json_filepath = ""
@@ -488,7 +494,8 @@ def model_to_api(model_filepath, model_type, private, categorical, y_train, prep
         model_filepath, model_type, categorical, labels, 
         preprocessor_filepath, custom_libraries, requirements, 
         exampledata_json_filepath, repo_name, image_tag, 
-        reproducibility_env_filepath, memory, timeout, pyspark_support=pyspark_support)
+        reproducibility_env_filepath, memory, timeout, task_type=task_type,
+        pyspark_support=pyspark_support)
 
     ### Progress Update #5/6 {{{
     sys.stdout.write('\r')
@@ -557,16 +564,25 @@ def create_competition(apiurl, data_directory, y_test, eval_metric_filepath=None
     #ytest data to load to s3
 
     if y_test is not None:
-        if type(y_test) is not list:
-            y_test=y_test.tolist()
-        else: 
-            pass
+        # object detection
+        if type(y_test) is dict:
+            for i in y_test.keys():
+                if type(y_test[i]) is not list:
+                    y_test[i] = y_test[i].tolist()
+                
+                if all(isinstance(x, (np.float64)) for x in y_test[i]):
+                    y_test[i] = [float(x) for x in y_test[i]]
 
-        if all(isinstance(x, (np.float64)) for x in y_test):
-              y_test = [float(i) for i in y_test]
         else: 
-            pass
+            if type(y_test) is not list:
+                y_test=y_test.tolist()
+            else: 
+                pass
 
+            if all(isinstance(x, (np.float64)) for x in y_test):
+                y_test = [float(i) for i in y_test]
+            else: 
+                pass
 
     pickle.dump(y_test,open(ytest_path,"wb"))
     s3["client"].upload_file(ytest_path, os.environ.get("BUCKET_NAME"),  model_id + "/competition/ytest.pkl")

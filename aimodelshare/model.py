@@ -598,15 +598,25 @@ def submit_model(
     #begin replacing code here
     #add call to eval lambda here to retrieve presigned urls and eval metrics
     if prediction_submission is not None:
-        if type(prediction_submission) is not list:
-            prediction_submission=prediction_submission.tolist()
-        else: 
-            pass
+        # object detection
+        if type(prediction_submission) is dict:
+            for i in prediction_submission.keys():
+                if type(prediction_submission[i]) is not list:
+                    prediction_submission[i] = prediction_submission[i].tolist()
+                
+                if all(isinstance(x, (np.float64)) for x in prediction_submission[i]):
+                    prediction_submission[i] = [float(x) for x in prediction_submission[i]]
 
-        if all(isinstance(x, (np.float64)) for x in prediction_submission):
-              prediction_submission = [float(i) for i in prediction_submission]
         else: 
-            pass
+            if type(prediction_submission) is not list:
+                prediction_submission=prediction_submission.tolist()
+            else: 
+                pass
+
+            if all(isinstance(x, (np.float64)) for x in prediction_submission):
+                prediction_submission = [float(i) for i in prediction_submission]
+            else: 
+                pass
 
     ##---Step 3: Attempt to get eval metrics and file access dict for model leaderboard submission
     #includes checks if returned values a success and errors otherwise

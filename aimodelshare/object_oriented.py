@@ -3,6 +3,9 @@
 
 
 
+from asyncio.base_tasks import _task_get_stack
+
+
 class ModelPlayground:
     """
     Parameters:
@@ -33,7 +36,9 @@ class ModelPlayground:
     def __str__(self):
         return f"ModelPlayground instance of model type: {self.model_type}, classification: {self.categorical},  private: {self.private}"
     
-    def deploy(self, model_filepath, preprocessor_filepath, y_train, example_data=None, custom_libraries = "FALSE", image="", reproducibility_env_filepath=None, memory=None, timeout=None, pyspark_support=False):
+    def deploy(self, model_filepath, preprocessor_filepath, y_train, example_data=None, 
+               custom_libraries="FALSE", image="", reproducibility_env_filepath=None, 
+               memory=None, timeout=None, pyspark_support=False, labels=None, task_type=""):
 
         """
         Launches a live prediction REST API for deploying ML models using model parameters and user credentials, provided by the user
@@ -85,7 +90,9 @@ class ModelPlayground:
                                       reproducibility_env_filepath = reproducibility_env_filepath,
                                       memory=memory,
                                       timeout=timeout,
-                                      pyspark_support=pyspark_support)
+                                      pyspark_support=pyspark_support,
+                                      labels=labels,
+                                      task_type=task_type)
 
         #remove extra quotes
         self.playground_url = self.playground_url[1:-1]

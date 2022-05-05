@@ -5,7 +5,6 @@ import cv2
 import os
 import numpy as np
 import json
-import onnx
 import onnxruntime as rt
 import base64
 import imghdr
@@ -20,13 +19,6 @@ def get_model_onnx(runtimemodel_s3_filename="runtime_model.onnx"):
                     "/runtime_model.onnx")
     model = rt.InferenceSession(obj.get()['Body'].read())
     return model
-
-def get_model_output(runtimemodel_s3_filename="runtime_model.onnx"):
-    s3 = boto3.resource('s3')
-    obj = s3.Object("$bucket_name", "$unique_model_id" +
-                    "/runtime_model.onnx")
-    model = onnx.load(obj.get()['Body'].read())
-    return [node.name for node in model.graph.output]
 
 def get_preprocessor(preprocessor_s3_filename="runtime_preprocessor.zip"):
     import pickle
@@ -78,7 +70,7 @@ preprocessor_type = runtime_data["runtime_preprocessor"]
 runtime_model = runtime_data["runtime_model"]["name"]
 
 model = get_model_onnx(runtimemodel_s3_filename='runtime_model.onnx')
-outputs = get_model_output(runtimemodel_s3_filename='runtime_model.onnx')
+outputs = [node.name for node in model.get_outputs()]
 
 # Load preprocessor
 
@@ -127,8 +119,13 @@ def predict(event,model,preprocessor):
   #extract predicted probability for all classes, extract predicted label
   result = {}
   for i in range(len(outputs)):
-    result[outputs[i]] = res[i].tolist()
-
+    if outputs[i] == "detection_boxes":
+      result[outputs[i]] = res[i][0].tolist()
+    if outputs[i] == "detection_classes":
+      result[outputs[i]] = res[i][0].tolist()
+    if outputs[i] == "detection_scores":
+      result[outputs[i]] = res[i][0].tolist()
+    
   os.remove("/tmp/imagetopredict."+image_file_type)
 
   return result

@@ -26,7 +26,9 @@ from .utils import *
 
 class create_prediction_api_class():
 
-    def __init__(self, model_filepath, unique_model_id, model_type, categorical, labels, apiid, custom_libraries, requirements, repo_name="", image_tag="", memory=None, timeout=None, pyspark_support=False):
+    def __init__(self, model_filepath, unique_model_id, model_type, categorical, 
+                labels, apiid, custom_libraries, requirements, task_type="",
+                repo_name="", image_tag="", memory=None, timeout=None, pyspark_support=False):
 
         #####
         self.user_session = boto3.session.Session(
@@ -50,6 +52,7 @@ class create_prediction_api_class():
         self.apiid = apiid
         self.custom_libraries = custom_libraries
         self.requirements = requirements
+        self.task_type = task_type
         self.repo_name = repo_name
         self.image_tag = image_tag
         self.memory = memory
@@ -77,7 +80,6 @@ class create_prediction_api_class():
             "text": 1024,
             "image": 1024,
             "video": 1024,
-            "object_detection": 1024,
         }
 
         self.timeout_model_mapping = {
@@ -85,7 +87,6 @@ class create_prediction_api_class():
             "text": 30,
             "image": 30,
             "video": 30,
-            "object_detection": 30,
         }
 
         self.eval_layer_map = {
@@ -126,17 +127,20 @@ class create_prediction_api_class():
             "auth": 512
         }
 
-        if self.categorical == True:
-            self.task_type="classification"
-        elif self.categorical == False:
-            self.task_type="regression"
-        else:
-            self.task_type="custom"
+        if self.task_type == "":
+            if self.categorical == True:
+                self.task_type="classification"
+            elif self.categorical == False:
+                self.task_type="regression"
+            else:
+                self.task_type="custom"
         
         if(self.model_type=="custom"):
             self.model_class="custom"
         elif(self.model_type=="neural style transfer"):
             self.model_class="generative"
+        elif(self.task_type=="object_detection"):
+            self.model_class="object_detection"
         elif(self.categorical==True):
             self.model_class="classification"
         elif(self.categorical==False):
@@ -148,8 +152,7 @@ class create_prediction_api_class():
                 "image": "2.txt",
                 "tabular": "4.txt",
                 "audio": "7.txt",
-                "video": "8.txt",
-                "object_detection": "9.txt"
+                "video": "8.txt"
             },
             "regression": {
                 "text": "1B.txt",
@@ -159,6 +162,9 @@ class create_prediction_api_class():
             },
             "generative": {
                 "neural style transfer": "nst.txt"
+            },
+            "object_detection": {
+                "image": "9.txt"
             }
         }
 
@@ -182,7 +188,7 @@ class create_prediction_api_class():
         else:
             data = pkg_resources.read_text(main, self.model_template_mapping[self.model_class][self.model_type])
             t = Template(data)
-            if(self.model_class=="classification"):
+            if(self.model_class in ["classification", "object_detection"]):
                 newdata = t.substitute(
                     bucket_name=os.environ.get("BUCKET_NAME"),
                     unique_model_id=self.unique_model_id,
@@ -213,6 +219,19 @@ class create_prediction_api_class():
             file.write(data)
         with ZipFile(os.path.join(self.temp_dir, 'archive2.zip'), 'a') as z:
             z.write(os.path.join(self.temp_dir, 'main.py'), 'main.py')
+
+            # add metric codes for eval lambda
+            if self.model_class == "object_detection":
+                from .object_detection import metric
+                
+                required_files = ['bounding_box.py', 'bounding_boxes.py', 'evaluator.py', 'utils.py']
+                for required_file in required_files:
+                    data = pkg_resources.read_text(metric, required_file)
+                    with open(os.path.join(self.file_objects_folder_path, required_file), 'w') as file:
+                        file.write(data)
+
+                    z.write(os.path.join(self.file_objects_folder_path, required_file), required_file)
+
         self.aws_client.upload_file_to_s3(os.path.join(self.temp_dir, 'archive2.zip'), os.environ.get("BUCKET_NAME"), self.unique_model_id+"/"+'archiveeval.zip')
 
         data2 = pkg_resources.read_text(main, 'authorization.txt')
@@ -441,11 +460,11 @@ class create_prediction_api_class():
 
 def create_prediction_api(model_filepath, unique_model_id, model_type, 
                           categorical, labels, apiid, custom_libraries, 
-                          requirements, repo_name="", image_tag="", 
+                          requirements, task_type="", repo_name="", image_tag="",
                           memory=None, timeout=None, pyspark_support=False):
     api_class = create_prediction_api_class(model_filepath, unique_model_id, 
                                            model_type, categorical, labels, apiid, 
-                                           custom_libraries, requirements, repo_name, 
+                                           custom_libraries, requirements, task_type, repo_name, 
                                            image_tag, memory, timeout, pyspark_support)
     return api_class.create_prediction_api()
 
