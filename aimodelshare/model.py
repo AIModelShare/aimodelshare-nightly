@@ -12,6 +12,8 @@ import tensorflow as tf
 
 from datetime import datetime
 
+from aimodelshare.leaderboard import get_leaderboard
+
 from aimodelshare.aws import run_function_on_lambda, get_token, get_aws_token, get_aws_client
 
 from aimodelshare.aimsonnx import _get_leaderboard_data, inspect_model, _get_metadata, _model_summary, model_from_string, pyspark_model_from_string
@@ -1017,21 +1019,17 @@ def update_runtime_model(apiurl, model_version=None, submission_type="competitio
     # }}}
 
     try:
-        leaderboard = aws_client["client"].get_object(
-            Bucket=api_bucket, Key=model_id +"/"+submission_type+"/model_eval_data_mastertable.csv"
+        leaderboard = get_leaderboard(apiurl=apiurl, submission_type=submission_type)
 
-
-
-        )
-        leaderboard = pd.read_csv(leaderboard["Body"], sep="\t")
         columns = leaderboard.columns
-        metric_names=["accuracy","f1_score","precision","recall","r2","mse","mae"]
         leaderboardversion=leaderboard[leaderboard['version']==int(model_version)]
         leaderboardversion=leaderboardversion.dropna(axis=1)
-        metric_names_subset=list(set(metric_names).intersection(leaderboardversion.columns))
+
+        metric_names_subset=list(columns[0:4])
         print(metric_names_subset)
         leaderboardversiondict=leaderboardversion.loc[:,metric_names_subset].to_dict('records')[0]
         print(leaderboardversiondict)
+
     except Exception as err:
         raise err
 
