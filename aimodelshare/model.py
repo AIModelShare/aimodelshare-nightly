@@ -19,17 +19,23 @@ from aimodelshare.aws import run_function_on_lambda, get_token, get_aws_token, g
 from aimodelshare.aimsonnx import _get_leaderboard_data, inspect_model, _get_metadata, _model_summary, model_from_string, pyspark_model_from_string
 
 
-def _get_file_list(client, bucket, model_id):
+def _get_file_list(client, bucket,keysubfolderid):
     #  Reading file list {{{
     try:
-        objects = client["client"].list_objects(Bucket=bucket, Prefix=model_id + "/")
+        objectlist=[]
+        paginator = client.get_paginator('list_objects')
+        pages = paginator.paginate(Bucket=bucket, Prefix=keysubfolderid)
+
+        for page in pages:
+            for obj in page['Contents']:
+                objectlist.append(obj['Key'])
+
     except Exception as err:
         return None, err
 
     file_list = []
-    if "Contents" in objects:
-        for key in objects["Contents"]:
-            file_list.append(key["Key"].split("/")[1])
+    for key in objectlist:
+            file_list.append(key.split("/")[-1])
     #  }}}
 
     return file_list, None
